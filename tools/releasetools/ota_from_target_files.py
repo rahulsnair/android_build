@@ -92,6 +92,12 @@ Usage:  ota_from_target_files [flags] input_target_files output_ota_package
   --stash_threshold <float>
       Specifies the threshold that will be used to compute the maximum
       allowed stash size (defaults to 0.8).
+
+  --backup <boolean>
+      Enable or disable the execution of backuptool.sh.
+      Disabled by default.
+
+
 """
 
 import sys
@@ -134,6 +140,8 @@ OPTIONS.full_bootloader = False
 # Stash size cannot exceed cache_size * threshold.
 OPTIONS.cache_size = None
 OPTIONS.stash_threshold = 0.8
+OPTIONS.backuptool = False
+
 
 def MostPopularKey(d, default):
   """Given a dict, return the key corresponding to the largest
@@ -496,6 +504,16 @@ def GetImage(which, tmpdir, info_dict):
   return sparse_img.SparseImage(path, mappath, clobbered_blocks)
 
 
+def CopyInstallTools(output_zip):
+  oldcwd = os.getcwd()
+  os.chdir(os.getenv('OUT'))
+  for root, subdirs, files in os.walk("install"):
+    for f in files:
+      p = os.path.join(root, f)
+      output_zip.write(p, p)
+  os.chdir(oldcwd)
+
+
 def WriteFullOTAPackage(input_zip, output_zip):
   # TODO: how to determine this?  We don't know what version it will
   # be installed on top of. For now, we expect the API just won't
@@ -587,6 +605,16 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   device_specific.FullOTA_InstallBegin()
 
+  CopyInstallTools(output_zip)
+  script.UnpackPackageDir("install", "/tmp/install")
+  script.SetPermissionsRecursive("/tmp/install", 0, 0, 0755, 0644, None, None)
+  script.SetPermissionsRecursive("/tmp/install/bin", 0, 0, 0755, 0755, None, None)
+
+  if OPTIONS.backuptool:
+    script.Mount("/system")
+    script.RunBackup("backup")
+    script.Unmount("/system")
+
   system_progress = 0.75
 
   if OPTIONS.wipe_user_data:
@@ -657,6 +685,14 @@ else if get_stage("%(bcb_dev)s") == "3/3" then
 
   common.CheckSize(boot_img.data, "boot.img", OPTIONS.info_dict)
   common.ZipWriteStr(output_zip, "boot.img", boot_img.data)
+
+  if OPTIONS.backuptool:
+    script.ShowProgress(0.02, 10)
+    if block_based:
+      script.Mount("/system")
+    script.RunBackup("restore")
+    if block_based:
+      script.Unmount("/system")
 
   script.ShowProgress(0.05, 5)
   script.WriteRawImage("/boot", "boot.img")
@@ -1550,6 +1586,8 @@ def main(argv):
       except ValueError:
         raise ValueError("Cannot parse value %r for option %r - expecting "
                          "a float" % (a, o))
+    elif o in ("--backup"):
+      OPTIONS.backuptool = bool(a.lower() == 'true')
     else:
       return False
     return True
@@ -1575,6 +1613,7 @@ def main(argv):
                                  "verify",
                                  "no_fallback_to_full",
                                  "stash_threshold=",
+                                 "backup=",
                              ], extra_option_handler=option_handler)
 
   if len(args) != 2:
