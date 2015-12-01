@@ -28,3 +28,10 @@ PRODUCT_COPY_FILES := \
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony.mk)
+
+
+PRODUCT_PACKAGES += \
+    mount.exfat \
+    fsck.exfat \
+    mkfs.exfat
+
