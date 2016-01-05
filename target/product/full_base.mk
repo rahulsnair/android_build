@@ -56,3 +56,5 @@ $(call inherit-product, $(SRC_TARGET_DIR)/product/locales_full.mk)
 
 # Get everything else from the parent package
 $(call inherit-product, $(SRC_TARGET_DIR)/product/generic_no_telephony.mk)
+
+$(call inherit-product-if-exists, vendor/boulzordev/common.mk)
